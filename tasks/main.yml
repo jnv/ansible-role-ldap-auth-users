@@ -1,0 +1,24 @@
+---
+- name: ensure that LDAP users cannot login when not listed in passwd
+  lineinfile: >
+    dest=/etc/passwd
+    insertafter=EOF
+    line='+::::::/sbin/nologin'
+    validate='echo %s; getent passwd root'
+
+- name: add allowed LDAP users to /etc/passwd
+  lineinfile: >
+    dest=/etc/passwd
+    line=+{{ item.key }}::::::
+    regexp=^\\+{{ item.key }}:.*
+    insertbefore=^\\+::::::/sbin/nologin
+    state=present
+    backup=yes
+    validate='echo %s; pwck --read-only --quiet'
+  with_dict: ldap_users
+
+- name: update users' groups
+  user: >
+    name={{ item.key }}
+    groups={{ item.value.groups | default([]) | join(',') }}
+  with_dict: ldap_users
